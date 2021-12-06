@@ -3,6 +3,9 @@
 # ppedge
 privacy preserving edge computing
 
+#### Requirement
+- tensorflow 2.x
+
 
 #### structure
 ppedge
