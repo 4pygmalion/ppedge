@@ -6,7 +6,7 @@ import sys
 import timeit
 import random
 
-# import cv2
+import cv2
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -33,9 +33,13 @@ class Profiler:
         self.repeat = repeat
         self.last_conv_idx = graph.layers.index(graph.get_layer(last_conv_layer))
 
+    # TODO: x를 실제 이미지로 작업할 필요 없이, 랜덤으로 생성한 텐서를 반환
+    def generate_random_tensor_on_batch(self, input_tensor, batch_size):
+        return
+
     def create_tensor_on_batch(
         self,
-        input_tensor_shape: tuple,
+        input_tensor: tf.Tensor,
         batch_size: int,
     ):
         random_x = random.sample(range(len(self.x)), batch_size)
@@ -74,7 +78,7 @@ class Profiler:
 
         Returns
         -------
-        ssim(float)
+        SSIM(float)
 
         """
         if len(x.shape) >= 4:
@@ -87,11 +91,13 @@ class Profiler:
         scaler = MinMaxScaler(feature_range=(0, 255))
 
         # get process image
-        procesed_img = self.feed_forward_subgraph(x, layer_index)
+        procesed_img = self.feed_forward_subgraph(image, layer_index)
         procesed_img = procesed_img.numpy().reshape(procesed_img.shape[1:])
         procesed_img = resize_image(
             procesed_img, reference_img=original_img, n_channel=1
         )
+
+        # Gray scale
         procesed_img = procesed_img.sum(axis=-1)
         procesed_img = scaler.fit_transform(procesed_img)  # range from 0 to 255
 

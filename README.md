@@ -5,7 +5,7 @@ privacy preserving edge computing
 
 #### Requirement
 - tensorflow 2.x
-
+- scikit-image 0.19.x 
 
 #### structure
 ppedge
@@ -15,6 +15,9 @@ ppedge
 - profilier.py
 - utils.py
 
+
+#### Input
+Not scaled image
 
 #### SSIM as privacy metrics
 SSIM comparison methods
