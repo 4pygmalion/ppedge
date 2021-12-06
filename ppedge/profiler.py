@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # coding: utf-8
 
+import os
+import sys
 import timeit
 import random
 
@@ -8,122 +10,90 @@ import random
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-import sklearn
+
 from sklearn.preprocessing import MinMaxScaler
 from skimage.metrics import structural_similarity as SSIM
+
+MODULE_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(MODULE_DIR)
+
+from utils import resize_image
 
 __all__ = ["Profiler", "resize"]
 
 
-def resize(img, reference_img, n_channel=3):
-    """
+class Profiler:
+    def __init__(
+        self,
+        graph: tf.keras.model.Models,
+        last_conv_layer: str,
+        repeat: int = 150,
+    ):
+        self.graph = graph
+        self.repeat = repeat
+        self.last_conv_idx = graph.layers.index(graph.get_layer(last_conv_layer))
 
-    Parameters
-    ----------
-    img: array.
-        3dim (N, N, channel)
-    reference_img: array with target image
-    n_channel: int
-
-
-    Returns
-    -------
-    img: np.ndarray. 3dims
-
-    """
-    if len(img.shape) != 3 or len(reference_img.shape) != 3:
-        raise ValueError(
-            "image shape must be 3 dim, however, input: {}".format(img.shape)
-        )
-
-    # Resizing
-    if img.shape[0:2] != reference_img.shape[0:2]:
-        img = cv2.resize(img, dsize=(reference_img.shape[0:2]))
-
-    # channel wise padding
-    if n_channel >= 2:
-        img = np.stack([img for _ in range(n_channel)])
-        img = np.transpose(img, axes=[1, 2, 0])
-    return img
-
-
-class Profiler(object):
-    """
-
-    Parameters
-    ----------
-    graph (tensorflow.keras.models.Model)
-    training_x (np.ndarray)
-
-    """
-
-    def __init__(self):
-        pass
-
-    # def __init__(self, graph, train_x, last_conv_layer, repeat=150):
-
-    # self.graph = graph
-    # self.repeat = repeat
-    # self.x = train_x
-    # self.scaler = MinMaxScaler(feature_range=(0, 255))
-    # self.last_conv_layer = last_conv_layer
-    # self.last_conv_index = graph.layers.index(graph.get_layer(last_conv_layer))
-
-    def regress_fc_layer(self, shape: tuple, batch=200) -> tf.Tensor:
-        return tf.random.normal(shape=(batch, *shape))
-
-    def _generate_input_tensor(self, input_shape: tuple) -> tf.tensor:
-        return tf.random.normal(shape=input_shape)
-
-    def do_profiling(
-        self, layer: tf.keras.layers.Layer, **kwargs
-    ) -> sklearn.linear_model.LinearRegression:
-
-        return
-
-    def _get_batch(self, batch_size):
+    def create_tensor_on_batch(
+        self,
+        input_tensor_shape: tuple,
+        batch_size: int,
+    ):
         random_x = random.sample(range(len(self.x)), batch_size)
         return self.x[random_x].astype("float32")
 
-    def feed_forward_subgraph(self, img, cutoff):
+    def feed_forward_subgraph(self, img: tf.Tensor, cut_layer_idx: int):
+        """Feed forward tensor into subgraph
 
-        subgraph = tf.keras.Sequential()
-        for layer in self.graph.layers[:cutoff]:
-            subgraph.add(layer)
-
-        if len(img.shape) <= 3:
-            process_img = subgraph(img[np.newaxis])
-        else:
-            process_img = subgraph(img)
-        return process_img
-
-    def _get_privacy_img(self, x, cutoff):
-        """
         Parameters
         ----------
-        x: image. not scaled.
-
+        img : tf.Tensor
+            2D array image
+        cut_layer_idx : int
+            layer index
 
         Returns
         -------
-        ssim : float32
+        [tf.Tensor]
+
+        """
+        subgraph = tf.keras.Sequential()
+        for layer in self.graph.layers[:cut_layer_idx]:
+            subgraph.add(layer)
+
+        if len(img.shape) <= 3:
+            return subgraph(img[np.newaxis])
+        return subgraph(img)
+
+    def get_SSIM_from_layer(self, image: tf.Tensor, layer_index: int):
+        """Calculate SSIM of x from start layer to given index of layer
+
+        Parameters
+        ----------
+        image (tf.Tensor): image. scaled
+        layer_index (int): layer index.
+
+        Returns
+        -------
+        ssim(float)
+
         """
         if len(x.shape) >= 4:
-            raise ValueError(
-                "X image shape must be under 4 dims, but given shape : {}".format(
-                    x.shape
-                )
-            )
+            msg = f"X image shape must be under 4 dims, but given shape : {image.shape}"
+            raise ValueError(msg)
 
         # randomly sample image
-        original_img = x.copy()
+        original_img = image.copy()
+
+        scaler = MinMaxScaler(feature_range=(0, 255))
 
         # get process image
-        procesed_img = self.feed_forward_subgraph(x / 255, cutoff)
+        procesed_img = self.feed_forward_subgraph(x, layer_index)
         procesed_img = procesed_img.numpy().reshape(procesed_img.shape[1:])
-        procesed_img = resize(procesed_img, reference_img=original_img, n_channel=1)
+        procesed_img = resize_image(
+            procesed_img, reference_img=original_img, n_channel=1
+        )
         procesed_img = procesed_img.sum(axis=-1)
-        procesed_img = self.scaler.fit_transform(procesed_img)  # range from 0 to 255
+        procesed_img = scaler.fit_transform(procesed_img)  # range from 0 to 255
 
         ori_gray_img = cv2.cvtColor(original_img, cv2.COLOR_RGB2GRAY)
 
