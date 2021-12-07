@@ -25,7 +25,7 @@ __all__ = ["Profiler", "resize"]
 class Profiler:
     def __init__(
         self,
-        graph: tf.keras.model.Models,
+        graph: tf.keras.Model,
         last_conv_layer: str,
         repeat: int = 150,
     ):
@@ -81,16 +81,18 @@ class Profiler:
         SSIM(float)
 
         """
-
-        if len(x.shape) >= 4:
-            msg = f"X image shape must be under 4 dims, but given shape : {image.shape}"
-            raise ValueError(msg)
-
         channel_means = image.numpy().mean(axis=(0, 1))
         if any(cm for cm in channel_means) > 1:
-            image /= 255
+            image /= 255 # 틀린듯 [0, 255여야하는듯?]
 
-        original_img = image.copy()
+        if image.ndim == 3:
+            image = image[tf.newaxis].copy()
+        if image.ndim < 4:
+            raise ValueError(("X image shape must be under 4 dims"
+                                f"but given shape : {image.shape[1:]}")) 
+
+        
+        original_img = image.copy()  # 4 dims
 
         scaler = MinMaxScaler(feature_range=(0, 255))
 
