@@ -16,4 +16,4 @@ def profiler():
 
 def test_regress_fc_layer(profiler):
     expected_shape = (200, 100)
-    assert expected_shape == profiler.regress_fc_layer(tuple(100)).shape
+    assert expected_shape == profiler.regress_fc_layer().shape

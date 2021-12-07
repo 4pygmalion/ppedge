@@ -73,7 +73,7 @@ class Profiler:
 
         Parameters
         ----------
-        image (tf.Tensor): image. scaled
+        image (tf.Tensor): One image (3D array: W, H, Channel). Scaled image recommended.
         layer_index (int): layer index.
 
         Returns
@@ -81,16 +81,20 @@ class Profiler:
         SSIM(float)
 
         """
+
         if len(x.shape) >= 4:
             msg = f"X image shape must be under 4 dims, but given shape : {image.shape}"
             raise ValueError(msg)
 
-        # randomly sample image
+        channel_means = image.numpy().mean(axis=(0, 1))
+        if any(cm for cm in channel_means) > 1:
+            image /= 255
+
         original_img = image.copy()
 
         scaler = MinMaxScaler(feature_range=(0, 255))
 
-        # get process image
+        # Feedforwarding
         procesed_img = self.feed_forward_subgraph(image, layer_index)
         procesed_img = procesed_img.numpy().reshape(procesed_img.shape[1:])
         procesed_img = resize_image(
