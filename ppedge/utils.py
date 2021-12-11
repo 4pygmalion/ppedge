@@ -2,13 +2,20 @@
 # coding: utf-8
 
 
-def resize_image(img, reference_img, n_channel=3):
-    """
+from cv2 import resize
+from numpy import stack, transpose
+from numpy import ndarray
+
+
+def resize_image(
+    img: ndarray, reference_img: ndarray, n_channel: int = 3
+) -> ndarray:
+
+    """Resize image shape to reference_image shape
 
     Parameters
     ----------
-    img: array.
-        3dim (N, N, channel)
+    img (np.ndarray): 3dim (N, N, channel)
     reference_img: array with target image
     n_channel: int
 
@@ -19,16 +26,15 @@ def resize_image(img, reference_img, n_channel=3):
 
     """
     if len(img.shape) != 3 or len(reference_img.shape) != 3:
-        raise ValueError(
-            "image shape must be 3 dim, however, input: {}".format(img.shape)
-        )
+        msg = f"image shape must be 3 dim, however, given: {img.shape}"
+        raise ValueError(msg)
 
     # Resizing
     if img.shape[0:2] != reference_img.shape[0:2]:
-        img = cv2.resize(img, dsize=(reference_img.shape[0:2]))
+        img = resize(img, dsize=(reference_img.shape[0:2]))
 
     # channel wise padding
     if n_channel >= 2:
-        img = np.stack([img for _ in range(n_channel)])
-        img = np.transpose(img, axes=[1, 2, 0])
+        img = stack([img for _ in range(n_channel)])
+        img = transpose(img, axes=[1, 2, 0])
     return img

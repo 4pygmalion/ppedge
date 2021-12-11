@@ -31,7 +31,9 @@ class Profiler:
     ):
         self.graph = graph
         self.repeat = repeat
-        self.last_conv_idx = graph.layers.index(graph.get_layer(last_conv_layer))
+        self.last_conv_idx = graph.layers.index(
+            graph.get_layer(last_conv_layer)
+        )
 
     # TODO: x를 실제 이미지로 작업할 필요 없이, 랜덤으로 생성한 텐서를 반환
     def generate_random_tensor_on_batch(self, input_tensor, batch_size):
@@ -73,44 +75,45 @@ class Profiler:
 
         Parameters
         ----------
-        image (tf.Tensor): One image (3D array: W, H, Channel). Scaled image recommended.
+        image (tf.Tensor): One color image (3D array: W, H, Channel).
+            with [0, 255] scaled.
         layer_index (int): layer index.
 
         Returns
         -------
-        SSIM(float)
+        SSIM(float): SSIM score
 
         """
-        channel_means = image.numpy().mean(axis=(0, 1))
-        if any(cm for cm in channel_means) > 1:
-            image /= 255 # 틀린듯 [0, 255여야하는듯?]
 
         if image.ndim == 3:
             image = image[tf.newaxis].copy()
-        if image.ndim < 4:
-            raise ValueError(("X image shape must be under 4 dims"
-                                f"but given shape : {image.shape[1:]}")) 
 
-        
+        if image.ndim < 4:
+            raise ValueError(
+                (
+                    "X image shape must be under 4 dims"
+                    f"but given shape : {image.shape[1:]}"
+                )
+            )
+
         original_img = image.copy()  # 4 dims
 
         scaler = MinMaxScaler(feature_range=(0, 255))
 
         # Feedforwarding
-        procesed_img = self.feed_forward_subgraph(image, layer_index)
+        procesed_img = self.feed_forward_subgraph(image, layer_index)  # tesnor
         procesed_img = procesed_img.numpy().reshape(procesed_img.shape[1:])
         procesed_img = resize_image(
             procesed_img, reference_img=original_img, n_channel=1
         )
 
         # Gray scale
-        procesed_img = procesed_img.sum(axis=-1)
+        procesed_img = procesed_img.mean(axis=-1)
         procesed_img = scaler.fit_transform(procesed_img)  # range from 0 to 255
-
-        ori_gray_img = cv2.cvtColor(original_img, cv2.COLOR_RGB2GRAY)
+        gray_original_img = original_img.mean(axis=-1)
 
         # SSIM
-        return SSIM(ori_gray_img, procesed_img)
+        return SSIM(gray_original_img, procesed_img)
 
     def get_privacy_profiling(self, batch_size, return_df=True):
         """
@@ -125,7 +128,7 @@ class Profiler:
         pd.DataFrame: return_df is true
 
         """
-        xs = self._get_batch(batch_size)
+        xs = self.create_tensor_on_batch(batch_size)
 
         total_ssims = []
         for x in xs:
@@ -139,7 +142,8 @@ class Profiler:
 
         if return_df:
             layer_names = [
-                layer.name for layer in self.graph.layers[1 : self.last_conv_index]
+                layer.name
+                for layer in self.graph.layers[1 : self.last_conv_index]
             ]
             df = pd.DataFrame(total_ssims, columns=layer_names)
             df = pd.DataFrame(df.unstack()).reset_index()
@@ -163,7 +167,7 @@ class Profiler:
         dsize: /kbyte
         """
 
-        xs = self._get_batch(batch_size)
+        xs = self.create_tensor_on_batch(batch_size)
 
         mem_sizes = []
         layer_runtimes = []
