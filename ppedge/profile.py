@@ -19,8 +19,6 @@ sys.path.append(MODULE_DIR)
 
 from utils import resize_image
 
-__all__ = ["Profiler", "resize"]
-
 
 class Profiler:
     def __init__(
@@ -115,8 +113,8 @@ class Profiler:
         # SSIM
         return SSIM(gray_original_img, procesed_img)
 
-    def get_privacy_profiling(self, batch_size, return_df=True):
-        """
+    def run_privacy_profiling(self, batch_size:int, return_df=True):
+        """Run privacy profile
 
         Parameters
         ----------
@@ -128,30 +126,27 @@ class Profiler:
         pd.DataFrame: return_df is true
 
         """
-        xs = self.create_tensor_on_batch(batch_size)
+        
+        images = self.create_tensor_on_batch(batch_size)
 
-        total_ssims = []
-        for x in xs:
-            x_ssims = []
-
-            for p in range(1, self.last_conv_index):
-                ssim = self._get_privacy_img(x, cutoff=p)
-                x_ssims.append(ssim)
-
-            total_ssims.append(x_ssims)
+        total_ssims = np.ones(shape=(batch_size, self.last_conv_idx))
+        for batch_idx, image in enumerate(images):
+            for i in range(1, self.last_conv_idx):
+                ssim = self.get_SSIM_from_layer(image=image, layer_index=i)
+                total_ssims[batch_size, i] = ssim
 
         if return_df:
             layer_names = [
                 layer.name
-                for layer in self.graph.layers[1 : self.last_conv_index]
+                for layer in self.graph.layers[1 : self.last_conv_idx]
             ]
+
             df = pd.DataFrame(total_ssims, columns=layer_names)
             df = pd.DataFrame(df.unstack()).reset_index()
             df.columns = ["layer", "n", "ssim"]
             return df
 
-        else:
-            return total_ssims
+        return total_ssims
 
     def get_layer_runtime(self, batch_size=100, repeat=150, return_size=True):
         """Get runtiem of each layer
@@ -195,3 +190,5 @@ class Profiler:
             return layer_runtimes
         else:
             return layer_runtimes, mem_sizes
+
+

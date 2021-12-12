@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-
+# TODO: 마지막 layer name도 반환
 def build_model(model="vgg"):
 
     if model == "vgg":
