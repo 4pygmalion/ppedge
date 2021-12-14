@@ -1,10 +1,28 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-
+import logging
+import yaml
 from cv2 import resize
 from numpy import stack, transpose
 from numpy import ndarray
+
+
+def get_logger(name):
+    logger = logging.getLogger(name=name)
+    stream_handler = logging.StreamHandler()
+    formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+    stream_handler.setFormatter(formatter)
+    logger.addHandler(stream_handler)
+
+    return logger
+
+
+def open_config(path):
+    with open(path, "r") as file_handle:
+        return yaml.load(file_handle, Loader=yaml.FullLoader)
 
 
 def resize_image(
@@ -25,8 +43,11 @@ def resize_image(
     img: np.ndarray. 3dims
 
     """
-    if len(img.shape) != 3 or len(reference_img.shape) != 3:
-        msg = f"image shape must be 3 dim, however, given: {img.shape}"
+    if img.ndim != 3 or reference_img.ndim != 3:
+        msg = (
+            f"image shape must be 3 dim, however"
+            f"given(img, ref_img): {img.shape, reference_img.shape}"
+        )
         raise ValueError(msg)
 
     # Resizing

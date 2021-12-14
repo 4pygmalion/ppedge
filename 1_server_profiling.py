@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 from PIL import Image
 
-from ppedge.profiler import Profiler
+from ppedge.profile import Profiler
 
 def build_model(model='vgg'):
 

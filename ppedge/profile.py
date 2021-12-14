@@ -4,13 +4,13 @@
 import os
 import sys
 import timeit
-import random
 
-import cv2
+
 import numpy as np
 import pandas as pd
 import tensorflow as tf
 
+from typing import Union
 from sklearn.preprocessing import MinMaxScaler
 from skimage.metrics import structural_similarity as SSIM
 
@@ -26,24 +26,17 @@ class Profiler:
         graph: tf.keras.Model,
         last_conv_layer: str,
         repeat: int = 150,
+        logger=None,
     ):
         self.graph = graph
         self.repeat = repeat
         self.last_conv_idx = graph.layers.index(
             graph.get_layer(last_conv_layer)
         )
+        self.logger = logger
 
-    # TODO: x를 실제 이미지로 작업할 필요 없이, 랜덤으로 생성한 텐서를 반환
-    def generate_random_tensor_on_batch(self, input_tensor, batch_size):
-        return
-
-    def create_tensor_on_batch(
-        self,
-        input_tensor: tf.Tensor,
-        batch_size: int,
-    ):
-        random_x = random.sample(range(len(self.x)), batch_size)
-        return self.x[random_x].astype("float32")
+    def prepare_profiling_dataset(self, imgs: Union[np.ndarray, tf.Tensor]):
+        return imgs
 
     def feed_forward_subgraph(self, img: tf.Tensor, cut_layer_idx: int):
         """Feed forward tensor into subgraph
@@ -84,7 +77,7 @@ class Profiler:
         """
 
         if image.ndim == 3:
-            image = image[tf.newaxis].copy()
+            image = tf.identity(image[tf.newaxis])
 
         if image.ndim < 4:
             raise ValueError(
@@ -94,8 +87,13 @@ class Profiler:
                 )
             )
 
-        original_img = image.copy()  # 4 dims
+        if isinstance(image, tf.Tensor):
+            original_img = image.numpy()[0]
+        elif isinstance(image, np.ndarray):
+            original_img = image.copy()[0]  # 4 dims
 
+        if self.logger:
+            self.logger.info(f"In process (Profiler): {original_img.shape}")
         scaler = MinMaxScaler(feature_range=(0, 255))
 
         # Feedforwarding
@@ -111,9 +109,15 @@ class Profiler:
         gray_original_img = original_img.mean(axis=-1)
 
         # SSIM
-        return SSIM(gray_original_img, procesed_img)
+        print(gray_original_img.shape, procesed_img.shape)
+        return SSIM(
+            gray_original_img.astype(np.float16),
+            procesed_img.astype(np.float16),
+        )
 
-    def run_privacy_profiling(self, batch_size:int, return_df=True):
+    def run_privacy_profiling(
+        self, images: Union[tf.Tensor, np.ndarray], return_df=True
+    ):
         """Run privacy profile
 
         Parameters
@@ -126,14 +130,14 @@ class Profiler:
         pd.DataFrame: return_df is true
 
         """
-        
-        images = self.create_tensor_on_batch(batch_size)
+        if isinstance(images, np.ndarray):
+            images = tf.convert_to_tensor(images)
 
-        total_ssims = np.ones(shape=(batch_size, self.last_conv_idx))
+        total_ssims = np.ones(shape=(len(images), self.last_conv_idx))
         for batch_idx, image in enumerate(images):
             for i in range(1, self.last_conv_idx):
                 ssim = self.get_SSIM_from_layer(image=image, layer_index=i)
-                total_ssims[batch_size, i] = ssim
+                total_ssims[batch_idx, i] = ssim
 
         if return_df:
             layer_names = [
@@ -190,5 +194,3 @@ class Profiler:
             return layer_runtimes
         else:
             return layer_runtimes, mem_sizes
-
-

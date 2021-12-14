@@ -6,7 +6,7 @@ TEST_DIR = os.path.dirname(os.path.abspath(__file__))
 MODULE_DIR = os.path.dirname(os.path.dirname(TEST_DIR))
 
 sys.path.append(MODULE_DIR)
-from ppedge.profiler import Profiler
+from ppedge.profile import Profiler
 
 
 @pytest.fixture(scope="module")
