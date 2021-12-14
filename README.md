@@ -1,8 +1,18 @@
-
-
 # ppedge
 privacy preserving edge computing
 
+#### This study investigate
+- Optimization on Multi input model
+- Privacy scheme
+- Real model 1): Face mask detection. https://github.com/cabani/MaskedFace-Net
+- Real model 2): State farm dataset. https://www.kaggle.com/c/state-farm-distracted-driver-detection
+
+#### Result
+
+
+#### Requirement
+- tensorflow 2.x
+- scikit-image 0.19.x 
 
 #### structure
 ppedge
@@ -12,6 +22,9 @@ ppedge
 - profilier.py
 - utils.py
 
+
+#### Input
+Not scaled image
 
 #### SSIM as privacy metrics
 SSIM comparison methods
