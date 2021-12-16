@@ -41,6 +41,9 @@ class Profiler:
     def feed_forward_subgraph(self, img: tf.Tensor, cut_layer_idx: int):
         """Feed forward tensor into subgraph
 
+        Note:
+            Some graph not sequential.
+
         Parameters
         ----------
         img : tf.Tensor
@@ -53,13 +56,12 @@ class Profiler:
         [tf.Tensor]
 
         """
-        subgraph = tf.keras.Sequential()
-        for layer in self.graph.layers[:cut_layer_idx]:
-            subgraph.add(layer)
 
-        if len(img.shape) <= 3:
-            return subgraph(img[np.newaxis])
-        return subgraph(img)
+        model = tf.keras.models.Sequential()
+        for layer in self.graph.layers[:cut_layer_idx]:
+            model.add(layer)
+
+        return model(img)
 
     def get_SSIM_from_layer(self, image: tf.Tensor, layer_index: int):
         """Calculate SSIM of x from start layer to given index of layer
@@ -75,9 +77,11 @@ class Profiler:
         SSIM(float): SSIM score
 
         """
+        self.logger.info(f"get_SSIM_from_layer: image shape{image.shape}")
 
         if image.ndim == 3:
             image = tf.identity(image[tf.newaxis])
+            self.logger.debug(f"iamge ndim:3. iamge shape {image.shape}")
 
         if image.ndim < 4:
             raise ValueError(
@@ -93,15 +97,15 @@ class Profiler:
             original_img = image.copy()[0]  # 4 dims
 
         if self.logger:
-            self.logger.info(f"In process (Profiler): {original_img.shape}")
+            self.logger.debug(f"Original image: {original_img.shape}")
         scaler = MinMaxScaler(feature_range=(0, 255))
 
         # Feedforwarding
         procesed_img = self.feed_forward_subgraph(image, layer_index)  # tesnor
-        procesed_img = procesed_img.numpy().reshape(procesed_img.shape[1:])
-        procesed_img = resize_image(
-            procesed_img, reference_img=original_img, n_channel=1
-        )
+        procesed_img = procesed_img.numpy()[0]
+        self.logger.debug(f"numpy iamge shape: {procesed_img.shape}")
+        procesed_img = resize_image(procesed_img, reference_img=original_img)
+        self.logger.debug(f"after resize iamge shape: {procesed_img.shape}")
 
         # Gray scale
         procesed_img = procesed_img.mean(axis=-1)
@@ -136,6 +140,12 @@ class Profiler:
         total_ssims = np.ones(shape=(len(images), self.last_conv_idx))
         for batch_idx, image in enumerate(images):
             for i in range(1, self.last_conv_idx):
+
+                if self.logger:
+                    self.logger.info(
+                        f"In process: run profiling of {i} index layer"
+                    )
+
                 ssim = self.get_SSIM_from_layer(image=image, layer_index=i)
                 total_ssims[batch_idx, i] = ssim
 

@@ -4,6 +4,7 @@ import argparse
 import random
 import cv2
 import numpy as np
+
 import tensorflow as tf
 from profile import Profiler
 from models import build_model
@@ -44,6 +45,7 @@ if __name__ == "__main__":
             print(e)
 
     LOGGER = get_logger(name="Main Logger")
+    LOGGER.info("-" * 30)
     LOGGER.info("In Process: Image Preparation")
 
     CONFIG = open_config(os.path.join(ROOT_DIR, "config.yaml"))
@@ -58,12 +60,12 @@ if __name__ == "__main__":
     ]
     PROFILING_IMGS = random.sample(IMAGE_PATHS, BATCH_SIZE)
     imgs = np.stack([cv2.imread(img) for img in PROFILING_IMGS])
-
+    LOGGER.info(f"Iamge shape:{imgs.shape}")
     LOGGER.info("In Process: Model building")
     model = build_model()
 
     LOGGER.info("In Process: Device profiling")
-    profiler = Profiler(model, "block5_conv4")
+    profiler = Profiler(model, "block5_conv4", logger=LOGGER)
     profiler.run_privacy_profiling(imgs)
 
     LOGGER.info("In Process: End of profiling")

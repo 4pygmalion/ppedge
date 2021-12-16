@@ -1,2 +1,6 @@
 # folder
-__pycache__/
+__pycache__
+datasets/
+logs/
+
+*.txt
