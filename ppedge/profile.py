@@ -24,19 +24,23 @@ class Profiler:
     def __init__(
         self,
         graph: tf.keras.Model,
-        last_conv_layer: str,
+        last_conv_layer: str = None,
         repeat: int = 150,
         logger=None,
     ):
         self.graph = graph
         self.repeat = repeat
-        self.last_conv_idx = graph.layers.index(
-            graph.get_layer(last_conv_layer)
-        )
         self.logger = logger
+        self.last_conv_idx = self._find_last_conv_idx()
 
-    def prepare_profiling_dataset(self, imgs: Union[np.ndarray, tf.Tensor]):
-        return imgs
+    def _find_last_conv_idx(self) -> int:
+
+        last_idx = int()
+        for layer_idx, layer in enumerate(self.graph.layers):
+            if "conv" in layer.name and last_idx < layer_idx:
+                last_idx = layer_idx
+
+        return last_idx
 
     def feed_forward_subgraph(self, img: tf.Tensor, cut_layer_idx: int):
         """Feed forward tensor into subgraph
@@ -77,24 +81,24 @@ class Profiler:
         SSIM(float): SSIM score
 
         """
-        self.logger.info(f"get_SSIM_from_layer: image shape{image.shape}")
+        self.logger.info(f"get_SSIM_from_layer: Input image shape{image.shape}")
 
-        if image.ndim == 3:
-            image = tf.identity(image[tf.newaxis])
-            self.logger.debug(f"iamge ndim:3. iamge shape {image.shape}")
+        # if image.ndim == 3:
+        #     image = tf.identity(image[tf.newaxis])
+        #     self.logger.debug(f"iamge ndim:3. iamge shape {image.shape}")
 
-        if image.ndim < 4:
-            raise ValueError(
-                (
-                    "X image shape must be under 4 dims"
-                    f"but given shape : {image.shape[1:]}"
-                )
-            )
+        # if image.ndim < 4:
+        #     raise ValueError(
+        #         (
+        #             "X image shape must be under 4 dims"
+        #             f"but given shape : {image.shape[1:]}"
+        #         )
+        #     )
 
         if isinstance(image, tf.Tensor):
-            original_img = image.numpy()[0]
+            original_img = image.numpy()
         elif isinstance(image, np.ndarray):
-            original_img = image.copy()[0]  # 4 dims
+            original_img = image.copy()
 
         if self.logger:
             self.logger.debug(f"Original image: {original_img.shape}")
@@ -102,7 +106,8 @@ class Profiler:
 
         # Feedforwarding
         procesed_img = self.feed_forward_subgraph(image, layer_index)  # tesnor
-        procesed_img = procesed_img.numpy()[0]
+        self.logger.debug(f"Output image shape: {procesed_img.shape}")
+        procesed_img = procesed_img.numpy()
         self.logger.debug(f"numpy iamge shape: {procesed_img.shape}")
         procesed_img = resize_image(procesed_img, reference_img=original_img)
         self.logger.debug(f"after resize iamge shape: {procesed_img.shape}")
@@ -113,7 +118,6 @@ class Profiler:
         gray_original_img = original_img.mean(axis=-1)
 
         # SSIM
-        print(gray_original_img.shape, procesed_img.shape)
         return SSIM(
             gray_original_img.astype(np.float16),
             procesed_img.astype(np.float16),

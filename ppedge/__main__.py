@@ -40,9 +40,9 @@ if __name__ == "__main__":
     if gpus:
         # 텐서플로가 세 번째 GPU만 사용하도록 제한
         try:
-            tf.config.experimental.set_visible_devices(gpus[0], "GPU")
+            tf.config.experimental.set_visible_devices(gpus[1], "GPU")
         except RuntimeError as e:
-            print(e)
+            physical_cpus = tf.config.list_physical_devices("CPU")
 
     LOGGER = get_logger(name="Main Logger")
     LOGGER.info("-" * 30)
@@ -60,9 +60,9 @@ if __name__ == "__main__":
     ]
     PROFILING_IMGS = random.sample(IMAGE_PATHS, BATCH_SIZE)
     imgs = np.stack([cv2.imread(img) for img in PROFILING_IMGS])
-    LOGGER.info(f"Iamge shape:{imgs.shape}")
+    LOGGER.debug(f"Iamge shape:{imgs.shape}")
     LOGGER.info("In Process: Model building")
-    model = build_model()
+    model = build_model(model="vgg")
 
     LOGGER.info("In Process: Device profiling")
     profiler = Profiler(model, "block5_conv4", logger=LOGGER)

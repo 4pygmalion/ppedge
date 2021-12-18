@@ -42,30 +42,22 @@ def open_config(path):
         return yaml.load(file_handle, Loader=yaml.FullLoader)
 
 
-def resize_image(img: ndarray, reference_img: ndarray) -> ndarray:
+def resize_image(img: ndarray, height: int, width: int) -> ndarray:
 
     """Resize image shape to reference_image shape
 
     Parameters
     ----------
     img (np.ndarray): 3dim (N, N, channel)
-    reference_img: array with target image
-    n_channel: int
-
+    height (int):
+    width (int):
 
     Returns
     -------
     img: np.ndarray. 3dims
 
     """
-    if img.ndim != 3 or reference_img.ndim != 3:
-        msg = (
-            f"image shape must be 3 dim, however"
-            f"given(img, ref_img): {img.shape, reference_img.shape}"
-        )
-        raise ValueError(msg)
 
     # In case of difference in W, and H
-    if img.shape[:2] != reference_img.shape[:2]:
-        return resize(img, dsize=(reference_img.shape[:2]))
-    return img
+
+    return resize(img, dsize=(width, height))
