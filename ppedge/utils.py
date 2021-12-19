@@ -2,14 +2,13 @@
 # coding: utf-8
 
 import os
-from re import DEBUG
 import yaml
 import logging
 from cv2 import resize
-from numpy import stack, transpose
 from numpy import ndarray
 
 PPEDGE_DIR = os.path.dirname(os.path.abspath(__file__))
+LOG_DIR = os.path.join(PPEDGE_DIR, "log")
 
 
 def get_logger(name, file_path=None):
@@ -19,14 +18,12 @@ def get_logger(name, file_path=None):
     if file_path:
         file_handler = logging.FileHandler(file_path)
     else:
-        file_handler = logging.FileHandler(
-            os.path.join(PPEDGE_DIR, "logs/mainlog.txt")
-        )
+        if not os.path.exists(LOG_DIR):
+            os.mkdir(LOG_DIR)
+        file_handler = logging.FileHandler(os.path.join(LOG_DIR, "mainlog.txt"))
 
     stream_handler = logging.StreamHandler()
-    formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
+    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     stream_handler.setFormatter(formatter)
     stream_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(formatter)
