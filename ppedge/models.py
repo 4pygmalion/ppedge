@@ -1,19 +1,36 @@
 import tensorflow as tf
 
-# TODO: 마지막 layer name도 반환
-def build_model(model="vgg"):
+
+def build_model(model: str = "vgg", n_class: int = 10) -> tf.keras.Model:
+    """Build keras defualt model for test
+
+    Args:
+        model (str): tensorflow supported model name
+        n_class (int): number of classes to classify
+
+    Return:
+        model (tf.keras.Model)
+    """
 
     if model == "vgg":
-        vgg19 = tf.keras.applications.VGG19(
-            include_top=False, 
-            input_shape=(256, 256, 3), 
-            classes=10
+        base_model = tf.keras.applications.VGG19(
+            include_top=False, input_shape=(256, 256, 3), classes=n_class
         )
-        vgg19.trainable = False
+        base_model.trainable = False
 
+    x = base_model.output
+    x = tf.keras.layers.Dense(1000, activation="relu")(x)
+    x = tf.keras.layers.GlobalAveragePooling2D()(x)
+    x = tf.keras.layers.Dense(10, activation="sigmoid")(x)
+    model = tf.keras.models.Model(base_model.input, x)
+
+    return model
+
+
+def inhance_graph_privacy(model: str = "vgg") -> tf.keras.Model:
     # ADD Batch normalization
     base_model = tf.keras.models.Sequential()
-    for layer in vgg19.layers:
+    for layer in model.layers:
 
         if "conv1" in layer.name:
             base_model.add(layer)
@@ -33,6 +50,6 @@ def build_model(model="vgg"):
     x = tf.keras.layers.Dense(1000, activation="relu")(x)
     x = tf.keras.layers.GlobalAveragePooling2D()(x)
     x = tf.keras.layers.Dense(10, activation="sigmoid")(x)
-    model = tf.keras.models.Model(base_model.input, x)
+    base_model = tf.keras.models.Model(base_model.input, x)
 
-    return model
+    return base_model

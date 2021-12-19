@@ -7,6 +7,7 @@ import timeit
 
 
 import numpy as np
+from numpy.core import multiarray
 import pandas as pd
 import tensorflow as tf
 
@@ -24,22 +25,29 @@ class Profiler:
     def __init__(
         self,
         graph: tf.keras.Model,
-        last_conv_layer: str,
+        last_conv_layer: str = None,
         repeat: int = 150,
         logger=None,
     ):
         self.graph = graph
         self.repeat = repeat
-        self.last_conv_idx = graph.layers.index(
-            graph.get_layer(last_conv_layer)
-        )
         self.logger = logger
+        self.last_conv_idx = self._find_last_conv_idx()
 
-    def prepare_profiling_dataset(self, imgs: Union[np.ndarray, tf.Tensor]):
-        return imgs
+    def _find_last_conv_idx(self) -> int:
+
+        last_idx = int()
+        for layer_idx, layer in enumerate(self.graph.layers):
+            if "conv" in layer.name and last_idx < layer_idx:
+                last_idx = layer_idx
+
+        return last_idx
 
     def feed_forward_subgraph(self, img: tf.Tensor, cut_layer_idx: int):
         """Feed forward tensor into subgraph
+
+        Note:
+            Some graph not sequential.
 
         Parameters
         ----------
@@ -53,71 +61,69 @@ class Profiler:
         [tf.Tensor]
 
         """
-        subgraph = tf.keras.Sequential()
+
+        model = tf.keras.models.Sequential()
         for layer in self.graph.layers[:cut_layer_idx]:
-            subgraph.add(layer)
+            model.add(layer)
 
-        if len(img.shape) <= 3:
-            return subgraph(img[np.newaxis])
-        return subgraph(img)
+        return model(img)
 
-    def get_SSIM_from_layer(self, image: tf.Tensor, layer_index: int):
+    def get_SSIM_from_layer(self, images: tf.Tensor, layer_index: int):
         """Calculate SSIM of x from start layer to given index of layer
 
         Parameters
         ----------
-        image (tf.Tensor): One color image (3D array: W, H, Channel).
+        images (tf.Tensor): color images (4D array: Batch, W, H, Channel).
             with [0, 255] scaled.
         layer_index (int): layer index.
 
         Returns
         -------
-        SSIM(float): SSIM score
+        SSIM(float): SSIM scores
 
         """
-
-        if image.ndim == 3:
-            image = tf.identity(image[tf.newaxis])
-
-        if image.ndim < 4:
-            raise ValueError(
-                (
-                    "X image shape must be under 4 dims"
-                    f"but given shape : {image.shape[1:]}"
-                )
-            )
-
-        if isinstance(image, tf.Tensor):
-            original_img = image.numpy()[0]
-        elif isinstance(image, np.ndarray):
-            original_img = image.copy()[0]  # 4 dims
-
         if self.logger:
-            self.logger.info(f"In process (Profiler): {original_img.shape}")
+            self.logger.info(f"get_SSIM_from_layer: Input image shape{images.shape}")
+
+        if isinstance(images, tf.Tensor):
+            original_imgs = images.numpy()
+        elif isinstance(images, np.ndarray):
+            original_imgs = images.copy()
+
+        if original_imgs.ndim >= 4 and original_imgs.shape[-1] >= 2:
+            gray_original_imgs = original_imgs.mean(axis=-1)
+
         scaler = MinMaxScaler(feature_range=(0, 255))
 
         # Feedforwarding
-        procesed_img = self.feed_forward_subgraph(image, layer_index)  # tesnor
-        procesed_img = procesed_img.numpy().reshape(procesed_img.shape[1:])
-        procesed_img = resize_image(
-            procesed_img, reference_img=original_img, n_channel=1
-        )
+        procesed_imgs = self.feed_forward_subgraph(images, layer_index)  # tesnor
+        procesed_imgs = procesed_imgs.numpy()
 
-        # Gray scale
-        procesed_img = procesed_img.mean(axis=-1)
-        procesed_img = scaler.fit_transform(procesed_img)  # range from 0 to 255
-        gray_original_img = original_img.mean(axis=-1)
+        resize_imgs = []
+        for img in procesed_imgs:
+            height, width = images.shape[1], images.shape[2]
+            resize_imgs.append(resize_image(img, height=height, width=width))
+        resize_imgs = np.stack(resize_imgs)
+
+        # Multichannel to gray channel
+        if resize_imgs.shape[-1] >= 2:
+            gray_procesed_imgs = resize_imgs.mean(axis=-1)
+
+        gray_procesed_imgs = [scaler.fit_transform(img) for img in gray_procesed_imgs]
 
         # SSIM
-        print(gray_original_img.shape, procesed_img.shape)
-        return SSIM(
-            gray_original_img.astype(np.float16),
-            procesed_img.astype(np.float16),
-        )
+        ssims = []
+        for gray_origin_img, gray_procesed_imgs in zip(
+            gray_original_imgs, gray_procesed_imgs
+        ):
+            ssim = SSIM(
+                gray_origin_img.astype(np.float16),
+                gray_procesed_imgs.astype(np.float16),
+            )
+            ssims.append(ssim)
+        return ssims
 
-    def run_privacy_profiling(
-        self, images: Union[tf.Tensor, np.ndarray], return_df=True
-    ):
+    def run_privacy_profiling(self, images: Union[tf.Tensor, np.ndarray], return_df=True):
         """Run privacy profile
 
         Parameters
@@ -133,21 +139,21 @@ class Profiler:
         if isinstance(images, np.ndarray):
             images = tf.convert_to_tensor(images)
 
-        total_ssims = np.ones(shape=(len(images), self.last_conv_idx))
-        for batch_idx, image in enumerate(images):
-            for i in range(1, self.last_conv_idx):
-                ssim = self.get_SSIM_from_layer(image=image, layer_index=i)
-                total_ssims[batch_idx, i] = ssim
+        total_ssims = []
+        for layer_index in range(1, self.last_conv_idx):
+            if self.logger:
+                self.logger.info(
+                    f"In process: run profiling of {layer_index} index layer"
+                )
+            ssims = self.get_SSIM_from_layer(images, layer_index=layer_index)
+            total_ssims.append(ssims)
 
         if return_df:
             layer_names = [
-                layer.name
-                for layer in self.graph.layers[1 : self.last_conv_idx]
+                layer.name for layer in self.graph.layers[1 : self.last_conv_idx]
             ]
 
-            df = pd.DataFrame(total_ssims, columns=layer_names)
-            df = pd.DataFrame(df.unstack()).reset_index()
-            df.columns = ["layer", "n", "ssim"]
+            df = pd.DataFrame(total_ssims, index=layer_names)
             return df
 
         return total_ssims
