@@ -93,13 +93,10 @@ class Profiler:
         if original_imgs.ndim >= 4 and original_imgs.shape[-1] >= 2:
             gray_original_imgs = original_imgs.mean(axis=-1)
 
-        if self.logger:
-            self.logger.debug(f"Original image: {original_imgs.shape}")
         scaler = MinMaxScaler(feature_range=(0, 255))
 
         # Feedforwarding
         procesed_imgs = self.feed_forward_subgraph(images, layer_index)  # tesnor
-        self.logger.debug(f"Output image shape: {procesed_imgs.shape}")
         procesed_imgs = procesed_imgs.numpy()
 
         resize_imgs = []
@@ -156,9 +153,7 @@ class Profiler:
                 layer.name for layer in self.graph.layers[1 : self.last_conv_idx]
             ]
 
-            df = pd.DataFrame(total_ssims, columns=layer_names)
-            df = pd.DataFrame(df.unstack()).reset_index()
-            df.columns = ["layer", "n", "ssim"]
+            df = pd.DataFrame(total_ssims, index=layer_names)
             return df
 
         return total_ssims

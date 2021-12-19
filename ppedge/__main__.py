@@ -3,6 +3,7 @@ import sys
 import argparse
 import random
 import cv2
+import pandas as pd
 import numpy as np
 
 import tensorflow as tf
@@ -12,6 +13,8 @@ from models import build_model
 PPEDGE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(PPEDGE_DIR)
 DATA_DIR = os.path.join(ROOT_DIR, "datasets")
+OUTPUT_DIR = os.path.join(ROOT_DIR, "outputs")
+
 sys.path.append(PPEDGE_DIR)
 
 from utils import get_logger, open_config
@@ -50,9 +53,7 @@ if __name__ == "__main__":
 
     CONFIG = open_config(os.path.join(ROOT_DIR, "config.yaml"))
     TRAIN_PATH = os.path.join(DATA_DIR, CONFIG["DATASETS"]["STATEFARM"])
-    FOLDERS = [
-        os.path.join(TRAIN_PATH, folder) for folder in os.listdir(TRAIN_PATH)
-    ]
+    FOLDERS = [os.path.join(TRAIN_PATH, folder) for folder in os.listdir(TRAIN_PATH)]
     IMAGE_PATHS = [
         os.path.join(folder, img_path)
         for folder in FOLDERS
@@ -60,12 +61,11 @@ if __name__ == "__main__":
     ]
     PROFILING_IMGS = random.sample(IMAGE_PATHS, BATCH_SIZE)
     imgs = np.stack([cv2.imread(img) for img in PROFILING_IMGS])
-    LOGGER.debug(f"Iamge shape:{imgs.shape}")
-    LOGGER.info("In Process: Model building")
     model = build_model(model="vgg")
 
     LOGGER.info("In Process: Device profiling")
     profiler = Profiler(model, "block5_conv4", logger=LOGGER)
-    profiler.run_privacy_profiling(imgs)
+    profiled_privacy_risk = profiler.run_privacy_profiling(imgs)
 
     LOGGER.info("In Process: End of profiling")
+    profiled_privacy_risk.to_csv(os.path.join(OUTPUT_DIR, "privacy_risk.csv"))

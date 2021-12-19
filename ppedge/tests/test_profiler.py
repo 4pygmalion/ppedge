@@ -39,3 +39,7 @@ def test_run_privacy_profiling(profiler, test_images):
     result = profiler.run_privacy_profiling(test_images, False)
     assert isinstance(result, list)
     assert profiler.last_conv_idx - 1 == len(result)
+
+
+def test_layer_name(profiler):
+    assert 19 == len(profiler.graph.layers[1 : profiler.last_conv_idx])
